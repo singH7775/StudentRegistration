@@ -5,58 +5,30 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define MAX_STUDENTS 100
-
-// Student variable
-typedef struct
-{
-    char username[50];
-    char password[50];
-    char student_name[50];
-    char classes[200];
-    int registered_classes[4];
-    int num_registered_classes;
-    int major;
-} student_info;
-
-// Classes - Codes - Majors
-const char *classes[] = {
-        "Intro to computer programming(C++)", "Intro to computer programming(Java)", "Operating Systems", "Data Structures and Algorithms",
-        "Principles of Microeconomics", "Principles of Macroeconomics", "Intermediate Microeconomic Theory", "Public Finance",
-        "Fundamentals of Graphic Design", "Digital Imaging", "Layout and Composition", "Motion Graphics",
-        "Introduction to Marine Biology", "Marine Invertebrate Zoology", "Marine Ecology", "Oceanography",
-        "Introduction to Philosophy", "Ethics", "Ancient Greek Philosophy", "Existentialism"
-};
-const char *codes[] = {
-        "JXLQR", "MZPWT", "FKCXD", "YBQSG",  // Computer Science
-        "XZMQR", "FLBTP", "JWYND", "CKVAH",  // Economics
-        "BFQTX", "RKZLM", "WSYAV", "NCTEL",  // Graphic Design
-        "XHPQR", "LZMSV", "JDNBW", "KPNRX",  // Marine Biology
-        "XMJPR", "LNBGZ", "DWQHF", "TYCKS"   // Philosophy
-};
-const char *majors[] = {"Computer Science",
-                        "Economics",
-                        "Graphic Design",
-                        "Marine Biology",
-                        "Philosophy"
-};
 
 // Student functions
-void register_student(student_info *student, int *num_students);
-void update_student(student_info *student, int student_index, int *num_students);
-const char *check_code(const char *class_selected, int major);
-const char *get_major_name(int index);
+void register_student(MYSQL *conn);
+void update_student(MYSQL *conn, int student_id);
+const char *check_code(MYSQL *conn, const char *class_selected, int major);
+char* get_major_name_from_db(MYSQL *conn, int major_id);
+int get_student_major(MYSQL *conn, int student_id);
+int max_students_reached(MYSQL *conn);
 
 // Class functions
-void register_class(student_info *student, int major);
-void remove_class(student_info *student);
-void display_classes(student_info *student, int major);
-int get_class_index(const char *class_code, int major);
-int is_class_registered(student_info *student, int class_index);
+void register_class(MYSQL *conn, int student_id, int major);
+void remove_class(MYSQL *conn, int student_id);
+void display_classes(MYSQL *conn, int student_id, int major);
+int is_class_registered(MYSQL *conn, int student_id, const char *course_code);
+int max_classes_reached(MYSQL *conn, int student_id);
+char* get_student_classes(MYSQL *conn, int student_id);
 
 // Login and Delete function
-int is_username_taken(student_info *student, int num_students, const char *username);
-int login(student_info *student, int num_students, char *username, char *password);
-void delete_account(student_info *student, int student_index, int *num_students);
+int is_username_taken(MYSQL *conn, const char* username);
+int validate_login(MYSQL *conn, const char* username, const char* password, int *student_id);
+void delete_account(MYSQL *conn, int student_id);
+
+// SQL Functions
+void sql_error(MYSQL *conn);
+MYSQL_RES* execute_query(MYSQL *conn, const char *query);
 
 #endif
