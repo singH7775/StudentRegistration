@@ -5,6 +5,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <conio.h>
+#include <stdbool.h>
 
 // Student functions
 void register_student(MYSQL *conn);
