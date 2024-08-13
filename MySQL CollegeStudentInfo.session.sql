@@ -1,4 +1,4 @@
-USE studentinfo;
+USE registered_students;
 
 CREATE TABLE Majors (
     major_id INT AUTO_INCREMENT PRIMARY KEY,
@@ -17,7 +17,8 @@ CREATE TABLE Login (
     login_id INT AUTO_INCREMENT PRIMARY KEY,
     student_id INT UNIQUE NOT NULL,
     username VARCHAR(50) UNIQUE NOT NULL,
-    password VARCHAR(50) NOT NULL,
+    password VARCHAR(65) NOT NULL,
+    salt_key bigint NOT NULL,
     FOREIGN KEY (student_id) REFERENCES Students(student_id)
 );
 

@@ -2,12 +2,12 @@
 
 void register_student(MYSQL *conn) 
 { 
-    char username[50], password[50], first_name[50], last_name[50];
+    char username[50], password[MAX_PASSWORD_LENGTH], first_name[50], last_name[50];
     int student_id;
 
     // Check if username is taken
     do {
-        printf("Enter a username: ");
+        printf("Enter a username(case sensitive) : ");
         scanf("%s", username);
         if (is_username_taken(conn, username))
             printf("Username is already taken. Please choose another.\n");
@@ -16,20 +16,25 @@ void register_student(MYSQL *conn)
     do {
     printf("Enter a password: ");
     scanf("%s", password);
-    if (strlen(password) < 10 || strchr(password, ' ') != NULL)
+    if (strlen(password) < 10 || strlen(password) > 50 || strchr(password, ' ') != NULL)
     {
         fflush(stdin);
-        printf("Please make your password atleast 10 characters and have no spaces!\n");
+        printf("Please make your password is between 10 and 50 characters and having no spaces!\n");
     }
-    } while(strlen(password) < 10 || strchr(password, ' ') != NULL);
+    } while(strlen(password) < 10 || strlen(password) > 50 || strchr(password, ' ') != NULL);
 
+    srand(time(NULL));
+    unsigned int salt_key = rand() % (4,294,967,295 + 1);
+    char salted_password[MAX_SALTED_PASSWORD_LENGTH];
+    snprintf(salted_password, sizeof(salted_password), "%s%u", password, salt_key);
+    
     // Student Information
     printf("First name: ");
     scanf("%s", first_name);
     printf("Last name: ");
     scanf("%s", last_name);
 
-    system("cls");
+    system("clear");
 
     printf("\nWelcome %s %s\nPlease choose your major below\n\n", first_name, last_name);
     printf("1.Computer science\n2.Economics\n3.Graphic design\n4.Marine biology\n5.Philosophy\nChoice: ");
@@ -43,7 +48,7 @@ void register_student(MYSQL *conn)
     }
 
     // Inserting in student table
-    char query[100];
+    char query[QUERY_SIZE];
     sprintf(query, "INSERT INTO Students (first_name, last_name, major_id) VALUES('%s', '%s', %d)",
             first_name, last_name, major);
 
@@ -55,8 +60,8 @@ void register_student(MYSQL *conn)
         student_id = mysql_insert_id(conn); // Retrieve the student id from students table
 
         // Login table
-        sprintf(query, "INSERT INTO Login (student_id, username, password) VALUES (%d, '%s', '%s')",
-                        student_id, username, password);
+        sprintf(query, "INSERT INTO Login (student_id, username, password, Salt_Key) VALUES (%d, '%s', SHA2('%s', 256), %u)",
+                                            student_id, username, salted_password, salt_key);
 
         execute_query(conn, query);
 
@@ -73,17 +78,13 @@ void register_student(MYSQL *conn)
         printf("Failed to add student. Please try again\n");
         return;
     }
-
-    // Notify user of success
-    getchar();
-    printf("\nPress Enter to continue to registration of class...");
-    while(getchar() != '\n');
-
+    system_pauser();
+    
     // Class operations
-    system("cls");
+    system("clear");
     display_classes(conn, student_id, major);
     register_class(conn, student_id, major);
-    system("cls");
+    system("clear");
 
     char *major_name = get_major_name_from_db(conn, major);
     char *student_classes = get_student_classes(conn, student_id);
@@ -102,17 +103,24 @@ void update_student(MYSQL *conn, int student_id)
 {
     int choice;
     do {
-        system("cls");
+        system("clear");
         printf("What would you like to do?\n1.Add a Class\n2.Remove a class\n3.Display classes enrolled\n4.Delete account\n5.Exit\nEnter: ");
         scanf("%d", &choice);
-        system("cls");
+        system("clear");
         switch(choice)
         {
             case 1:
+                if (max_classes_reached(conn, student_id))
+                {
+                printf("You have signed up for all classes available!\n");
+                system_pauser();
+                break;
+                } else {
                 int major = get_student_major(conn, student_id);
                 display_classes(conn, student_id, major);
                 register_class(conn, student_id, major);
                 break;
+                }
             case 2:
                 remove_class(conn, student_id);
                 break;
@@ -125,9 +133,10 @@ void update_student(MYSQL *conn, int student_id)
                 } else {
                     printf("Failed to retrieve the student classes.\n");
                 }
+                system_pauser();
                 break;
             case 4:
-                system("cls");
+                system("clear");
                 int delete;
                 printf("Are you sure?\n1.Yes\n2.Exit\n");
                 scanf("%d", &delete);
@@ -148,7 +157,7 @@ void update_student(MYSQL *conn, int student_id)
 
 const char *check_code(MYSQL *conn, const char *class_selected, int major)
 {
-    char query[200];
+    char query[QUERY_SIZE];
     sprintf(query, "SELECT course_name, course_code FROM Courses "
                     "WHERE major_id = %d AND course_code = '%s'", major, class_selected);
     
@@ -174,7 +183,7 @@ const char *check_code(MYSQL *conn, const char *class_selected, int major)
 char* get_major_name_from_db(MYSQL *conn, int major_id)
 {
     char *major_name;
-    char query[100];
+    char query[QUERY_SIZE];
 
     sprintf(query, "SELECT major_name FROM Majors WHERE major_id = %d", major_id);
 
@@ -201,7 +210,7 @@ char* get_major_name_from_db(MYSQL *conn, int major_id)
 
 int get_student_major(MYSQL *conn, int student_id)
 {
-    char query[100];
+    char query[QUERY_SIZE];
     sprintf(query, "SELECT major_id FROM Students WHERE student_id = %d", student_id);
 
     MYSQL_RES *result = execute_query(conn, query);
@@ -216,7 +225,7 @@ int get_student_major(MYSQL *conn, int student_id)
 int max_students_reached(MYSQL *conn)
 {
     int count = 0;
-    char query[100];
+    char query[QUERY_SIZE];
 
     sprintf(query, "SELECT COUNT(*) FROM Students");
     MYSQL_RES *result = execute_query(conn, query);
@@ -243,7 +252,7 @@ void register_class(MYSQL *conn, int student_id, int major)
         {
             if (!is_class_registered(conn, student_id, class_selected))
             {
-                char query[100];
+                char query[QUERY_SIZE];
                 sprintf(query, "INSERT INTO Enrollments (student_id, course_id) "
                                 "SELECT %d, course_id FROM Courses WHERE course_code = '%s'",
                                 student_id, class_selected); 
@@ -258,11 +267,16 @@ void register_class(MYSQL *conn, int student_id, int major)
 
                 if (!max_classes_reached(conn, student_id))
                 {
+                    while(valid_class != 1 || valid_class != 0) {
                     printf("Would you like to add another class?\n[1 - Yes] / [0 - No]\n");
                     scanf("%d", &valid_class);
+                    if (valid_class == 1 || valid_class == 0)
+                        break;
+                    printf("Please enter a valid choice\n");
+                    }
                     if (valid_class == 1)
                     {
-                        system("cls");
+                        system("clear");
                         display_classes(conn, student_id, major);
                     }
                 }
@@ -270,6 +284,7 @@ void register_class(MYSQL *conn, int student_id, int major)
             else
             {
                 printf("This class has already been registered.\n");
+                
             }
         }
         else 
@@ -284,7 +299,7 @@ void register_class(MYSQL *conn, int student_id, int major)
     if (max_classes_reached(conn, student_id))
     {
         printf("You have signed up for all classes available!\n");
-        system("pause");
+        system_pauser();
     }
 }
 
@@ -294,6 +309,7 @@ void remove_class(MYSQL *conn, int student_id)
     if (strcmp(enrolled_classes, "No Classes") == 0)
     {
         printf("You are not enrolled in any classes.\n");
+        system_pauser();
         return;
     }
     printf("Current classes enrolled: %s\n", enrolled_classes);
@@ -309,7 +325,7 @@ void remove_class(MYSQL *conn, int student_id)
 
         if (class_name != NULL)
         {
-            char query[200];
+            char query[QUERY_SIZE];
             sprintf(query,  "DELETE FROM Enrollments "
                             "WHERE student_id = %d AND course_id = "
                             "(SELECT course_id FROM Courses WHERE course_code = '%s')",
@@ -323,6 +339,7 @@ void remove_class(MYSQL *conn, int student_id)
             } else {
                 printf("Failed to remove class. Please try again!\n");
             }
+            system_pauser();
             delete = true;
             free((void*)class_name);
         } else {
@@ -339,7 +356,7 @@ void display_classes(MYSQL *conn, int student_id, int major)
     char *current_major = get_major_name_from_db(conn, major);
     printf("Welcome to %s!\nPlease choose a class to register for the semester...\n\n", current_major);
 
-    char query[100];
+    char query[QUERY_SIZE];
     sprintf(query, "SELECT course_code, course_name FROM Courses WHERE major_id = %d", major);
     
     MYSQL_RES *result = execute_query(conn, query);
@@ -360,7 +377,7 @@ void display_classes(MYSQL *conn, int student_id, int major)
 
 int is_class_registered(MYSQL *conn, int student_id, const char *course_code)
 {
-    char query[200];
+    char query[QUERY_SIZE];
     sprintf(query,  "SELECT COUNT(*) FROM Enrollments e "
                     "JOIN Courses c ON e.course_id = c.course_id "
                     "WHERE e.student_id = %d AND c.course_code = '%s'",
@@ -378,7 +395,7 @@ int is_class_registered(MYSQL *conn, int student_id, const char *course_code)
 
 int max_classes_reached(MYSQL *conn, int student_id)
 {
-    char query[100];
+    char query[QUERY_SIZE];
     sprintf(query, "SELECT count(*) FROM Enrollments WHERE student_id = %d", student_id);
 
     MYSQL_RES *result = execute_query(conn, query);
@@ -393,7 +410,7 @@ int max_classes_reached(MYSQL *conn, int student_id)
 
 char* get_student_classes(MYSQL *conn, int student_id)
 {
-    char query[200];
+    char query[QUERY_SIZE];
     sprintf(query,  "SELECT GROUP_CONCAT(CONCAT(c.course_name, ' (', c.course_code, ')') SEPARATOR ', ') " // Function to concat all rows in 1 row
                     "FROM Enrollments e "
                     "JOIN Courses c ON e.course_id = c.course_id "
@@ -422,7 +439,7 @@ char* get_student_classes(MYSQL *conn, int student_id)
 
 int is_username_taken(MYSQL *conn, const char* username)
 {
-    char query[100];
+    char query[QUERY_SIZE];
     sprintf(query, "SELECT COUNT(*) FROM Login WHERE username = '%s'", username); // Checking if username exists in db
 
     MYSQL_RES *result = execute_query(conn, query);
@@ -436,27 +453,40 @@ int is_username_taken(MYSQL *conn, const char* username)
 
 int validate_login(MYSQL *conn, const char* username, const char* password, int *student_id)
 {
-    char query[100];
-    sprintf(query, "SELECT student_id FROM Login WHERE username = '%s' AND password = '%s'", username, password);
-
+    char query[QUERY_SIZE];
+    // Get salt key
+    unsigned int salt_key = 0;
+    sprintf(query, "SELECT salt_key FROM Login WHERE BINARY username = '%s'", username);
     MYSQL_RES *result = execute_query(conn, query);
     MYSQL_ROW row = mysql_fetch_row(result);
+    if (row) {
+        salt_key = atoi(row[0]);
+    }
+    mysql_free_result(result);
+
+    char salted_password[MAX_SALTED_PASSWORD_LENGTH];
+    snprintf(salted_password, sizeof(salted_password), "%s%u", password, salt_key);
+    
+    sprintf(query, "SELECT student_id FROM Login WHERE BINARY username = '%s' AND password = SHA2('%s', 256)", username, salted_password);
+
+    MYSQL_RES *result2 = execute_query(conn, query);
+    MYSQL_ROW row2 = mysql_fetch_row(result2);
 
     int valid = 0;
-    if (row)
+    if (row2)
     {
         valid = 1;
-        *student_id = atoi(row[0]);
+        *student_id = atoi(row2[0]);
     }
 
-    mysql_free_result(result);
+    mysql_free_result(result2);
 
     return valid;
 }
 
 void delete_account(MYSQL *conn, int student_id)
 {
-    char query[100];
+    char query[QUERY_SIZE];
 
     // Delete from enrollments
     sprintf(query, "DELETE FROM Enrollments WHERE student_id = %d", student_id);
@@ -499,4 +529,94 @@ MYSQL_RES* execute_query(MYSQL *conn, const char *query)
     }
 
     return result;
+}
+
+void system_pauser() 
+{
+    printf("Press Enter to continue...");
+    while (getchar() != '\n');
+    getchar();
+}
+
+void test_db_info(MYSQL *conn, int student_id) 
+{
+    int choice;
+    char query[QUERY_SIZE];
+    printf("Which table would you like to test?\n1.Students\n2.Enrollments\n3.Login\n");
+    scanf("%d", &choice);
+    while (choice < 1 || choice > 3) {
+        printf("Please enter a valid choice: ");
+        scanf("%d", &choice);
+    }    
+    while (getchar() != '\n');
+
+    switch(choice) {
+        MYSQL_RES *result;
+        case 1 :
+            sprintf(query, "SELECT * FROM Students WHERE student_id = %d", student_id);
+            result = execute_query(conn, query);
+            if (result) {
+                MYSQL_ROW row = mysql_fetch_row(result);
+                if (row) {
+                    int num_fields = mysql_num_fields(result);
+                    MYSQL_FIELD *fields = mysql_fetch_fields(result);
+                    for (int i = 0; i<num_fields; i++) {
+                        printf("%s - %s\n", fields[i].name, row[i] ? row[i] : "NULL");
+                    }
+                    printf("\n");
+                } else {
+                    printf("No data found\n");
+                }
+                mysql_free_result(result);
+            } else {
+                printf("Query failed\n");
+            }
+            break;
+        case 2 :
+            sprintf(query, "SELECT * FROM Enrollments WHERE student_id = %d", student_id);
+            result = execute_query(conn, query);
+
+            if (result) {
+                MYSQL_ROW row = mysql_fetch_row(result);
+                if (row) {
+                    int num_fields = mysql_num_fields(result);
+                    MYSQL_FIELD *fields = mysql_fetch_fields(result);
+                    for(int i = 0; i<num_fields; i++) {
+                            printf("%s - %s\n", fields[i].name, row[i] ? row[i] : "NULL"); // Print out the first row fetched
+                    }
+                    while (row = mysql_fetch_row(result)) { // Print out the rest of the rows fetched
+                        for(int i = 0; i<num_fields; i++) {
+                            printf("%s - %s\n", fields[i].name, row[i] ? row[i] : "NULL");
+                        }
+                    }
+                    printf("\n");
+                } else {
+                    printf("No data found\n");
+                }
+                mysql_free_result(result);
+            } else {
+                printf("Query failed\n");
+            }
+            break;
+        case 3 :
+            sprintf(query, "SELECT * FROM Login WHERE student_id = %d", student_id);
+            result = execute_query(conn, query);
+
+            if (result) {
+                MYSQL_ROW row = mysql_fetch_row(result);
+                if (row) {
+                    int num_fields = mysql_num_fields(result);
+                    MYSQL_FIELD *fields = mysql_fetch_fields(result);
+                    for(int i = 0; i<num_fields; i++) {
+                        printf("%s - %s\n", fields[i].name, row[i] ? row[i] : "NULL");
+                    }
+                } else {
+                    printf("No data found");
+                }
+                mysql_free_result(result);
+            } else {
+                printf("Query failed");
+            }
+            break;
+    }
 }

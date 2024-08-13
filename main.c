@@ -10,7 +10,7 @@ int main()
     }
 
     // Connection creation
-    if (mysql_real_connect(conn, "localhost", "user1", "Wifi7000", "studentinfo", 0, NULL, 0) == NULL)
+    if (mysql_real_connect(conn, "localhost", "the-programmer", "fortnite", "registered_students", 0, NULL, 0) == NULL)
     {
         sql_error(conn);
     }
@@ -21,16 +21,17 @@ int main()
     int choice;
     do {
         do {
-            printf("What would you like to do?\n1.Register as a student\n2.Current student? Update or delete classes\n3.Exit Session\nEnter:");
+            printf("What would you like to do?\n1.Register as a student\n2.Current student? Update or delete classes\n"
+                    "3.Test Database\n4.Exit session\nEnter:");
             if (scanf("%d", &choice) != 1)
             {
                 while(getchar() != '\n');
                 printf("Please enter a number only!\n");
                 choice = 0;
-            } else if (choice < 1 || choice > 3) {
+            } else if (choice < 1 || choice > 4) {
                 printf("Please enter a valid choice!\n");
             }
-        } while (choice < 1 || choice > 3);
+        } while (choice < 1 || choice > 4);
 
         if (choice == 1)
         {
@@ -46,17 +47,18 @@ int main()
         {
             int choice2;
             do {
-                char username[50], password[50];
+                char username[50], password[MAX_PASSWORD_LENGTH];
                 int student_id;
-                printf("Enter account username: ");
+                printf("Enter account username(Case sensitive): ");
                 scanf("%s", username);
                 printf("Enter a password: ");
                 scanf("%s", password);
 
                 if (validate_login(conn, username, password, &student_id))
                 {
-                    system("cls");
-                    printf("Login successful!\n");
+                    system("clear");
+                    printf("Login successful! Welcome %s.\n", username);
+                    system_pauser();
                     update_student(conn, student_id);
                     break;
                 }
@@ -67,7 +69,23 @@ int main()
                 }
             }while(choice2 != 1);
         }
-    } while (choice != 3);
+        else if (choice == 3)
+        {
+            bool testing = true;
+            int student_id;
+            char choice;
+            do {
+                printf("Enter a student_id you would like to test: ");
+                scanf("%d", &student_id);
+                test_db_info(conn, student_id);
+                printf("Would you like to do another test? [y]");
+                scanf("%c", &choice);
+                if (choice != 'y' && choice != 'Y') {
+                    testing = false;
+                }
+            } while (testing);
+        }
+    } while (choice != 4);
 
     mysql_close(conn);
     return 0;
